@@ -1,8 +1,7 @@
 <?php
-session_start();
 require_once 'db.php';
 
-// Votre email Administrateur unique d'après la capture
+// Votre email Administrateur unique
 define('ADMIN_EMAIL_EXCLUSIF', 'nkurunzizamuganza94@gmail.com');
 
 $error = '';
@@ -27,17 +26,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($user && $password_valide) {
+            // Définition synchrone pour éviter tout conflit de nom dans le projet
             $_SESSION['user_id'] = $user['id'];
+            $_SESSION['utilisateur_id'] = $user['id'];
             $_SESSION['user_nom'] = $user['nom'];
             $_SESSION['user_email'] = $user['email'];
 
-            // SECURITE STRICTE DU ROLE :
-            // Si c'est VOTRE email -> Forcé en 'admin'
-            // Sinon -> Utilise le rôle défini en BDD ('veterinaire' ou 'secretaire')
+            // SECURITE STRICTE DU ROLE
             if (mb_strtolower($user['email']) === mb_strtolower(ADMIN_EMAIL_EXCLUSIF)) {
                 $_SESSION['user_role'] = 'admin';
 
-                // Met à jour le rôle en BDD pour synchroniser si ce n'était pas fait
+                // Met à jour le rôle en BDD si pas fait
                 $pdo->prepare("UPDATE utilisateurs SET role = 'admin' WHERE id = ?")->execute([$user['id']]);
             } else {
                 $_SESSION['user_role'] = !empty($user['role']) ? $user['role'] : 'veterinaire';
@@ -152,7 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-    // Script pour afficher / masquer le mot de passe (icône œil)
     const togglePassword = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('passwordInput');
     const eyeIcon = document.getElementById('eyeIcon');
