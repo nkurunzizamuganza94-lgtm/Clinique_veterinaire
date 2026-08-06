@@ -1,151 +1,94 @@
 <?php
-session_start();
-if (!isset($_SESSION['user_id'])) {
+require_once 'db.php';
+
+if (!isset($_SESSION['utilisateur_id'])) {
     header('Location: login.php');
     exit;
 }
-require_once 'db.php';
 
-// Ajout d'une consultation et du traitement associé
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'ajouter') {
-    $animal_id = (int)$_POST['animal_id'];
-    $veterinaire_id = $_SESSION['user_id'];
-    $diagnostic = trim($_POST['diagnostic']);
-    $remarques = trim($_POST['remarques']);
-    
-    // Soins/Vaccins
-    $type_soin = $_POST['type_soin'];
-    $nom_produit = trim($_POST['nom_produit']);
-    $dosage = trim($_POST['dosage']);
-
-    if ($animal_id > 0 && !empty($diagnostic)) {
-        $stmt = $pdo->prepare("INSERT INTO consultations (animal_id, veterinaire_id, diagnostic, remarques) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$animal_id, $veterinaire_id, $diagnostic, $remarques]);
-        $consultation_id = $pdo->lastInsertId();
-
-        if (!empty($nom_produit)) {
-            $stmt2 = $pdo->prepare("INSERT INTO traitements_vaccinations (consultation_id, type, nom_produit, dosage) VALUES (?, ?, ?, ?)");
-            $stmt2->execute([$consultation_id, $type_soin, $nom_produit, $dosage]);
-        }
-
-        header('Location: consultations.php');
-        exit;
-    }
+try {
+    $stmt = $pdo->query("
+        SELECT consultations.*, animaux.nom AS animal_nom, utilisateurs.nom AS vet_nom 
+        FROM consultations 
+        LEFT JOIN animaux ON consultations.animal_id = animaux.id 
+        LEFT JOIN utilisateurs ON consultations.veterinaire_id = utilisateurs.id 
+        ORDER BY consultations.date_consultation DESC
+    ");
+    $consultations = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $consultations = [];
 }
-
-$animaux = $pdo->query("SELECT id, nom FROM animaux ORDER BY nom ASC")->fetchAll();
-
-$consultations = $pdo->query("
-    SELECT c.*, a.nom AS animal_nom, u.nom AS veterinaire_nom, t.type AS soin_type, t.nom_produit, t.dosage
-    FROM consultations c
-    JOIN animaux a ON c.animal_id = a.id
-    JOIN utilisateurs u ON c.veterinaire_id = u.id
-    LEFT JOIN traitements_vaccinations t ON t.consultation_id = c.id
-    ORDER BY c.date_consultation DESC
-")->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Gestion des Consultations</title>
+    <title>Consultations - Clinique Vétérinaire</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .sidebar { min-height: 100vh; background-color: #1e3c72; color: white; }
+        .sidebar a { color: rgba(255,255,255,0.8); text-decoration: none; padding: 12px 20px; display: block; }
+        .sidebar a:hover, .sidebar a.active { background-color: #2a5298; color: white; }
+    </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-    <div class="container">
-        <a class="navbar-brand" href="dashboard.php">Clinique Vétérinaire</a>
-        <div class="navbar-nav me-auto">
-            <a class="nav-link text-white" href="proprietaires.php">Propriétaires</a>
-            <a class="nav-link text-white" href="animaux.php">Animaux</a>
-            <a class="nav-link text-white fw-bold" href="consultations.php">Consultations</a>
-        </div>
-        <a href="logout.php" class="btn btn-outline-light btn-sm">Déconnexion</a>
+
+<div class="container-fluid">
+    <div class="row">
+        <nav class="col-md-3 col-lg-2 sidebar p-0">
+            <div class="p-3 text-center border-bottom border-secondary">
+                <h4 class="fw-bold m-0">Clinique Vétérinaire</h4>
+            </div>
+            <div class="py-3">
+                <a href="dashboard.php"><i class="fa-solid fa-chart-line me-2"></i> Tableau de bord</a>
+                <a href="animaux.php"><i class="fa-solid fa-paw me-2"></i> Animaux</a>
+                <a href="consultations.php" class="active"><i class="fa-solid fa-stethoscope me-2"></i> Consultations</a>
+                <a href="factures.php"><i class="fa-solid fa-file-invoice-dollar me-2"></i> Factures</a>
+                <a href="admin_utilisateurs.php"><i class="fa-solid fa-users me-2"></i> Utilisateurs</a>
+                <hr class="text-light">
+                <a href="logout.php" class="text-danger"><i class="fa-solid fa-right-from-bracket me-2"></i> Déconnexion</a>
+            </div>
+        </nav>
+
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Historique des Consultations</h2>
+                <button class="btn btn-primary"><i class="fa-solid fa-plus me-2"></i>Nouvelle consultation</button>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Animal</th>
+                                <th>Vétérinaire</th>
+                                <th>Diagnostic</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($consultations)): ?>
+                                <tr><td colspan="4" class="text-center text-muted">Aucune consultation enregistrée.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($consultations as $c): ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($c['date_consultation']) ?></td>
+                                        <td class="fw-bold"><?= htmlspecialchars($c['animal_nom'] ?? 'Inconnu') ?></td>
+                                        <td>Dr. <?= htmlspecialchars($c['vet_nom'] ?? 'Inconnu') ?></td>
+                                        <td><?= htmlspecialchars($c['diagnostic']) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
     </div>
-</nav>
-
-<div class="container">
-    <h2 class="mb-4">Consultations & Traitements</h2>
-
-    <!-- Formulaire -->
-    <div class="card mb-4 shadow-sm">
-        <div class="card-header bg-light"><strong>Nouvelle Consultation</strong></div>
-        <div class="card-body">
-            <form method="POST" class="row g-3">
-                <input type="hidden" name="action" value="ajouter">
-                <div class="col-md-6">
-                    <label class="form-label">Animal *</label>
-                    <select name="animal_id" class="form-select" required>
-                        <option value="">Sélectionner un animal...</option>
-                        <?php foreach ($animaux as $a): ?>
-                            <option value="<?= $a['id'] ?>"><?= htmlspecialchars($a['nom']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label">Diagnostic *</label>
-                    <input type="text" name="diagnostic" class="form-control" required>
-                </div>
-                <div class="col-md-12">
-                    <label class="form-label">Remarques / Observations</label>
-                    <textarea name="remarques" class="form-control" rows="2"></textarea>
-                </div>
-                <hr>
-                <h5>Traitement / Vaccination associé (Optionnel)</h5>
-                <div class="col-md-3">
-                    <label class="form-label">Type</label>
-                    <select name="type_soin" class="form-select">
-                        <option value="traitement">Traitement</option>
-                        <option value="vaccin">Vaccin</option>
-                    </select>
-                </div>
-                <div class="col-md-5">
-                    <label class="form-label">Nom du produit / vaccin</label>
-                    <input type="text" name="nom_produit" class="form-control">
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Dosage</label>
-                    <input type="text" name="dosage" class="form-control" placeholder="ex: 1 comprimé/jour">
-                </div>
-                <div class="col-12">
-                    <button type="submit" class="btn btn-success">Enregistrer la consultation</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Liste -->
-    <table class="table table-bordered">
-        <thead class="table-dark">
-            <tr>
-                <th>Date</th>
-                <th>Animal</th>
-                <th>Vétérinaire</th>
-                <th>Diagnostic</th>
-                <th>Traitement / Vaccin</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($consultations as $c): ?>
-            <tr>
-                <td><?= $c['date_consultation'] ?></td>
-                <td><strong><?= htmlspecialchars($c['animal_nom']) ?></strong></td>
-                <td><?= htmlspecialchars($c['veterinaire_nom']) ?></td>
-                <td><?= htmlspecialchars($c['diagnostic']) ?></td>
-                <td>
-                    <?php if ($c['nom_produit']): ?>
-                        <span class="badge bg-<?= $c['soin_type'] === 'vaccin' ? 'danger' : 'info' ?>">
-                            <?= strtoupper($c['soin_type']) ?>
-                        </span>
-                        <?= htmlspecialchars($c['nom_produit']) ?> (<?= htmlspecialchars($c['dosage']) ?>)
-                    <?php else: ?>
-                        <span class="text-muted">Aucun</span>
-                    <?php endif; ?>
-                </td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
 </div>
+
 </body>
 </html>
