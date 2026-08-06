@@ -2,54 +2,37 @@
 session_start();
 require_once 'db.php';
 
-// Votre email Administrateur unique d'après la capture
-define('ADMIN_EMAIL_EXCLUSIF', 'nkurunzizamuganza94@gmail.com');
-
-$error = '';
+$erreur = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email']);
-    $password = trim($_POST['password']);
+    $email = trim($_POST['email'] ?? '');
+    $mot_de_passe = trim($_POST['mot_de_passe'] ?? '');
 
-    if (!empty($email) && !empty($password)) {
-        $stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE email = ?");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
+    if (!empty($email) && !empty($mot_de_passe)) {
+        try {
+            $stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE email = :email LIMIT 1");
+            $stmt->execute(['email' => $email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        // Verification du mot de passe (compatible password_hash ou texte brut)
-        $password_valide = false;
-        if ($user) {
-            if (password_verify($password, $user['mot_de_passe'])) {
-                $password_valide = true;
-            } elseif ($password === $user['mot_de_passe']) {
-                $password_valide = true;
-            }
-        }
+            if ($user && password_verify($mot_de_passe, $user['mot_de_passe'])) {
+                // Régénération de la session pour la sécurité
+                session_regenerate_id(true);
+                
+                $_SESSION['utilisateur_id'] = $user['id'];
+                $_SESSION['nom'] = $user['nom'];
+                $_SESSION['email'] = $user['email'];
+                $_SESSION['role'] = $user['role'];
 
-        if ($user && $password_valide) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user_nom'] = $user['nom'];
-            $_SESSION['user_email'] = $user['email'];
-
-            // SECURITE STRICTE DU ROLE :
-            // Si c'est VOTRE email -> Forcé en 'admin'
-            // Sinon -> Utilise le rôle défini en BDD ('veterinaire' ou 'secretaire')
-            if (mb_strtolower($user['email']) === mb_strtolower(ADMIN_EMAIL_EXCLUSIF)) {
-                $_SESSION['user_role'] = 'admin';
-
-                // Met à jour le rôle en BDD pour synchroniser si ce n'était pas fait
-                $pdo->prepare("UPDATE utilisateurs SET role = 'admin' WHERE id = ?")->execute([$user['id']]);
+                header('Location: dashboard.php');
+                exit;
             } else {
-                $_SESSION['user_role'] = !empty($user['role']) ? $user['role'] : 'veterinaire';
+                $erreur = "Email ou mot de passe incorrect.";
             }
-
-            header('Location: dashboard.php');
-            exit;
-        } else {
-            $error = "Email ou mot de passe incorrect.";
+        } catch (PDOException $e) {
+            $erreur = "Erreur de base de données : " . $e->getMessage();
         }
     } else {
-        $error = "Veuillez remplir tous les champs.";
+        $erreur = "Veuillez remplir tous les champs.";
     }
 }
 ?>
@@ -59,117 +42,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion - Clinique Vétérinaire</title>
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            background: #f4f6f9;
-            height: 100vh;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        .login-card {
+        .card-login {
+            max-width: 400px;
             width: 100%;
-            max-width: 420px;
-            padding: 35px 30px;
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
         }
-        .login-title {
-            color: #0d6efd;
-            font-weight: 700;
-            font-size: 1.8rem;
-            margin-bottom: 25px;
+        .card-header {
+            background-color: transparent;
+            border-bottom: none;
+            text-align: center;
+            padding-top: 30px;
         }
-        .form-control {
-            background-color: #eef4ff;
-            border: 1px solid #d0e1fd;
-            padding: 12px 15px;
-            font-size: 0.95rem;
-            border-radius: 8px;
-        }
-        .form-control:focus {
-            background-color: #fff;
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
-        }
-        .btn-login {
-            background-color: #0d6efd;
+        .btn-primary {
+            background-color: #2a5298;
             border: none;
             padding: 12px;
             font-weight: 600;
-            border-radius: 8px;
-            font-size: 1rem;
         }
-        .btn-login:hover {
-            background-color: #0b5ed7;
-        }
-        .input-group-text {
-            background-color: #eef4ff;
-            border: 1px solid #d0e1fd;
-            cursor: pointer;
+        .btn-primary:hover {
+            background-color: #1e3c72;
         }
     </style>
 </head>
 <body>
 
-<div class="login-card text-center">
-    <h2 class="login-title">Connexion</h2>
-
-    <?php if ($error): ?>
-        <div class="alert alert-danger py-2 mb-3" style="font-size: 0.9rem;">
-            <?= htmlspecialchars($error) ?>
-        </div>
-    <?php endif; ?>
-
-    <form method="POST" action="login.php">
-        <div class="text-start mb-3">
-            <label class="form-label text-secondary small fw-bold">Email</label>
-            <input type="email" name="email" class="form-control" value="nkurunzizamuganza94@gmail.com" required>
-        </div>
-
-        <div class="text-start mb-4">
-            <label class="form-label text-secondary small fw-bold">Mot de passe</label>
-            <div class="input-group">
-                <input type="password" name="password" id="passwordInput" class="form-control" value="1234" required>
-                <span class="input-group-text" id="togglePassword">
-                    <i class="fa-solid fa-eye-slash text-secondary" id="eyeIcon"></i>
-                </span>
+<div class="card card-login bg-white p-4">
+    <div class="card-header">
+        <h3 class="fw-bold text-dark">Clinique Vétérinaire</h3>
+        <p class="text-muted">Connectez-vous à votre espace</p>
+    </div>
+    
+    <div class="card-body">
+        <?php if (!empty($erreur)): ?>
+            <div class="alert alert-danger text-center mb-3" role="alert">
+                <?= htmlspecialchars($erreur) ?>
             </div>
-        </div>
+        <?php endif; ?>
 
-        <button type="submit" class="btn btn-primary btn-login w-100 mb-3">Se connecter</button>
+        <form action="login.php" method="POST">
+            <div class="mb-3">
+                <label for="email" class="form-label font-weight-bold">Adresse Email</label>
+                <input type="email" class="form-control" id="email" name="email" required placeholder="nom@exemple.com">
+            </div>
 
-        <div>
-            <a href="register.php" class="text-decoration-none text-primary" style="font-size: 0.95rem;">
-                Pas encore de compte ? S'inscrire
-            </a>
-        </div>
-    </form>
+            <div class="mb-4">
+                <label for="mot_de_passe" class="form-label font-weight-bold">Mot de passe</label>
+                <input type="password" class="form-control" id="mot_de_passe" name="mot_de_passe" required placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Se connecter</button>
+        </form>
+    </div>
 </div>
-
-<script>
-    // Script pour afficher / masquer le mot de passe (icône œil)
-    const togglePassword = document.getElementById('togglePassword');
-    const passwordInput = document.getElementById('passwordInput');
-    const eyeIcon = document.getElementById('eyeIcon');
-
-    togglePassword.addEventListener('click', function () {
-        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        passwordInput.setAttribute('type', type);
-        
-        if (type === 'text') {
-            eyeIcon.classList.remove('fa-eye-slash');
-            eyeIcon.classList.add('fa-eye');
-        } else {
-            eyeIcon.classList.remove('fa-eye');
-            eyeIcon.classList.add('fa-eye-slash');
-        }
-    });
-</script>
 
 </body>
 </html>
