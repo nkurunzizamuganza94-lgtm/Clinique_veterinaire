@@ -1,7 +1,6 @@
 <?php
 require_once 'db.php';
 
-// Votre email Administrateur unique
 define('ADMIN_EMAIL_EXCLUSIF', 'nkurunzizamuganza94@gmail.com');
 
 $error = '';
@@ -15,7 +14,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
-        // Verification du mot de passe (compatible password_hash ou texte brut)
         $password_valide = false;
         if ($user) {
             if (password_verify($password, $user['mot_de_passe'])) {
@@ -26,17 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($user && $password_valide) {
-            // Définition synchrone pour éviter tout conflit de nom dans le projet
+            // Définition synchrone pour la compatibilité avec tout le site
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['utilisateur_id'] = $user['id'];
             $_SESSION['user_nom'] = $user['nom'];
             $_SESSION['user_email'] = $user['email'];
 
-            // SECURITE STRICTE DU ROLE
             if (mb_strtolower($user['email']) === mb_strtolower(ADMIN_EMAIL_EXCLUSIF)) {
                 $_SESSION['user_role'] = 'admin';
-
-                // Met à jour le rôle en BDD si pas fait
                 $pdo->prepare("UPDATE utilisateurs SET role = 'admin' WHERE id = ?")->execute([$user['id']]);
             } else {
                 $_SESSION['user_role'] = !empty($user['role']) ? $user['role'] : 'veterinaire';
@@ -58,59 +53,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion - Clinique Vétérinaire</title>
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body {
-            background: #f4f6f9;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .login-card {
-            width: 100%;
-            max-width: 420px;
-            padding: 35px 30px;
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-        }
-        .login-title {
-            color: #0d6efd;
-            font-weight: 700;
-            font-size: 1.8rem;
-            margin-bottom: 25px;
-        }
-        .form-control {
-            background-color: #eef4ff;
-            border: 1px solid #d0e1fd;
-            padding: 12px 15px;
-            font-size: 0.95rem;
-            border-radius: 8px;
-        }
-        .form-control:focus {
-            background-color: #fff;
-            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
-        }
-        .btn-login {
-            background-color: #0d6efd;
-            border: none;
-            padding: 12px;
-            font-weight: 600;
-            border-radius: 8px;
-            font-size: 1rem;
-        }
-        .btn-login:hover {
-            background-color: #0b5ed7;
-        }
-        .input-group-text {
-            background-color: #eef4ff;
-            border: 1px solid #d0e1fd;
-            cursor: pointer;
-        }
+        body { background: #f4f6f9; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .login-card { width: 100%; max-width: 420px; padding: 35px 30px; background: #ffffff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
+        .login-title { color: #0d6efd; font-weight: 700; font-size: 1.8rem; margin-bottom: 25px; }
+        .form-control { background-color: #eef4ff; border: 1px solid #d0e1fd; padding: 12px 15px; font-size: 0.95rem; border-radius: 8px; }
+        .btn-login { background-color: #0d6efd; border: none; padding: 12px; font-weight: 600; border-radius: 8px; font-size: 1rem; }
+        .btn-login:hover { background-color: #0b5ed7; }
+        .input-group-text { background-color: #eef4ff; border: 1px solid #d0e1fd; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -158,16 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     togglePassword.addEventListener('click', function () {
         const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
         passwordInput.setAttribute('type', type);
-        
-        if (type === 'text') {
-            eyeIcon.classList.remove('fa-eye-slash');
-            eyeIcon.classList.add('fa-eye');
-        } else {
-            eyeIcon.classList.remove('fa-eye');
-            eyeIcon.classList.add('fa-eye-slash');
-        }
+        eyeIcon.classList.toggle('fa-eye-slash');
+        eyeIcon.classList.toggle('fa-eye');
     });
 </script>
-
 </body>
 </html>
