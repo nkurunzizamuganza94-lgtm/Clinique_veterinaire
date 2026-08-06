@@ -1,12 +1,23 @@
 <?php
-// Configuration et démarrage de la session avec support HTTPS pour Render
+// Fix pour le reverse-proxy Render (HTTPS)
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+}
+
+// Configuration stricte et durable des cookies de session PHP sur Render
 if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.cookie_httponly', 1);
-    ini_set('session.use_only_cookies', 1);
-    ini_set('session.cookie_samesite', 'Lax');
+    session_set_cookie_params([
+        'lifetime' => 86400, // 24 heures
+        'path' => '/',
+        'domain' => '',
+        'secure' => true,     // Exigé par HTTPS
+        'httponly' => true,   // Empêche le vol de session via JS
+        'samesite' => 'Lax'   // Permet au cookie de persister lors de la navigation
+    ]);
     session_start();
 }
 
+// Connexion à la base de données Aiven
 $host = getenv('DB_HOST') ?: 'mysql-24df985f-nkurunzizamuganza94-7dfc.k.aivencloud.com';
 $port = getenv('DB_PORT') ?: '12921';
 $dbname = getenv('DB_NAME') ?: 'defaultdb';
